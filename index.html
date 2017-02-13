@@ -1,0 +1,167 @@
+<html>
+    <head>
+        <script src="http://localhost:35729/livereload.js?snipver=1"></script>
+        <script src="./words.js"></script>
+        <style>
+            canvas {
+                  margin-top: 10px;
+            }
+            pre {
+                  text-shadow: 1px 1px rgba(255,0,0,0.4);
+            }
+            body {
+                  background-color: white;
+                        padding: 20px;
+            }
+        </style>
+    </head>
+    <body>
+    
+        <h1>morse code trainer</h1>
+        <br/>
+        <canvas id="scr" width="800" height="500"></canvas>
+        <div id="sliders"></div>
+        <script>
+//speedmorse
+var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+var notes = [195.998, 220, 246.942, 261.626, 293.665, 329.628, 369.994];
+var octave = 1;
+var analyser = audioCtx.createAnalyser();
+var sinea = audioCtx.createOscillator();
+var frequncy = 0;
+var dot  = 1;//dot length
+var dash = 3;//dash length
+var egap = 1;//gap between subsequent dots and dashes
+var cgap = 3;// gap between characters
+var wgap = 7;// gap between words
+var m = 0.05; //multiplier for timing
+var t = 0;
+sinea.frequency.value = 0;
+sinea.type = "sine";
+sinea.connect(audioCtx.destination);
+sinea.start();
+/*****
+I stole the lookup table from morsemidi
+******/
+var ctx = scr.getContext("2d");
+var font = "\"Courier New\", Courier, monospace";
+var size = 56;
+var charpad = size / 2;
+var currentWord;
+var currentWordWidths = [];
+var currentWordMorse;
+var tightness =0;
+var blur = 9;
+var playing = 0;
+var find =  ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","1","2","3","4","5","6","7","8","9","0",".",",",":","?","'","-","/","(",")","\"","=","_","%",";","{FRC}","{SN}","{ERR}","{AS}","{COM}","{AR}","{SK}","{SOS}"];
+
+var replace = [".-","-...","-.-.","-..",".","..-.","--.","....","..",".---","-.-",".-..","--","-.","---",".--.","--.-",".-.","...","-","..-","...-",".--","-..-","-.--","--..",".----","..---","...--","....-",".....","-....","--...","---..","----.","-----",".-.-.-","--..--","---...","..--..",".----.","-....-","-..-.","-.--.","-.--.-",".-..-.","-...-","..--.-",".--.-.-.","-.-.-.",".-..-","...-.","........",".-...","-.-.-",".-.-.","...-.-","...---..."];
+
+//words loaded from words.js in current dir
+var messageIndex=0;
+
+
+function qdot() {
+  sinea.frequency.setValueAtTime(frequncy, audioCtx.currentTime + (t*m));
+  t++;
+  sinea.frequency.setValueAtTime(0, audioCtx.currentTime + (t*m));
+  t+=egap;
+}
+function qdash() {
+  sinea.frequency.setValueAtTime(frequncy, audioCtx.currentTime + (t*m));
+  t+=3;
+  sinea.frequency.setValueAtTime(0, audioCtx.currentTime + (t*m));
+  t+=egap;
+}
+function eg() {t+=egap;}
+function cg() {t+=cgap;}
+function wg() {
+  sinea.frequency.setValueAtTime(0, audioCtx.currentTime + (t*m));
+  t+=wgap;
+  }
+function gri(min, max) {
+  min = Math.ceil(min);
+  max = Math.floor(max);
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+function getRandWord() {
+	return words[gri(0,words.length-1)];
+}
+function parseWord(word){
+  currentWord = word;
+  currentWordWidths = [];
+  word = word.toUpperCase();
+	i = 0;
+  buffer = "";
+  for(;i<word.length;i++) {
+  	ch = word[i];
+    f = find.indexOf(ch);
+    if (f==-1) return -1;
+    r = replace[f];
+    buffer += r + " ";
+    ctx.font=size+"px "+font;
+    currentWordWidths[i] = ctx.measureText(ch).width - tightness;
+  }
+  return buffer;
+}
+function draw(){
+  ctx.fillStyle = "rgba(255,255,255,0."+blur+")";
+  ctx.fillRect(0,0,700,300);
+  ctx.fillStyle = "silver";
+  ctx.fillRect(200,50, 2, 20);
+  ctx.fillRect(200,200-20+2, 2,20);
+  ctx.font=size+"px "+font;
+  k = 0;
+  characterOffset = 0;
+  test = Math.round(currentWord.length/3);
+  test2 = 0;
+  for(k=0;k<test;k++)
+  	test2+=currentWordWidths[k];
+  test2 += charpad;
+  for(k=0;k<currentWord.length;k++) {
+  		if(test == k) {ctx.fillStyle = "red";}else{ctx.fillStyle = "black";}
+      ctx.fillText(currentWord[k], characterOffset+200-test2+(size/4), 150);
+      characterOffset += currentWordWidths[k];
+  } 
+  window.requestAnimationFrame(draw);
+}
+
+var go = function(){
+	 if(playing==1) return;
+//	 currentWordMorse = parseWord( words[messageIndex] );
+     currentWordMorse = parseWord( getRandWord() );
+   messageIndex++;
+   if(messageIndex== words.length) messageIndex = 0;
+   if(currentWordMorse == -1) return;
+   playing=1;
+   t=0;
+	 frequncy = notes[gri(0,notes.length-1)] * octave;
+    for(k=0;k<currentWordMorse.length;k++){
+      switch (currentWordMorse[k]) {
+        case '.':
+          qdot();
+        break;
+        case '-':
+          qdash();
+        break;
+        case ' ':
+          cg();
+        break;
+      }
+    }
+    wg();
+		t+=0;
+	setTimeout(function(){
+  	playing = 0;
+    go();
+  },t*m*1000);
+};
+//https://pastebin.com/raw/6KyX6bk2
+
+parseWord("");
+window.requestAnimationFrame(draw);
+playing = 0;
+go();
+        </script>
+    </body>
+</html>
